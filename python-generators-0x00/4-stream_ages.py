@@ -53,9 +53,9 @@ def calculate_average_age():
         count += 1
     
     if count > 0:
-        average_age = total_age / count
-        print(f"Average age of users: {average_age}")
-        return average_age
+        mean_age = total_age / count
+        print(f"Average age of users: {mean_age}")
+        return mean_age
     else:
         print("No users found in database")
         return 0
