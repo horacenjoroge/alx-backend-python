@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 """
 Task 4: Memory-Efficient Aggregation with Generators
-Objective: Use generator to compute memory-efficient aggregate function (average age)
-Requirements: Use no more than 2 loops, cannot use SQL AVERAGE, print "Average age of users: {average}"
+Objective: Use generator to compute memory-efficient aggregate function for age data
+Requirements: Use no more than 2 loops, calculate mean using Python only
 """
 import seed
 
@@ -38,11 +38,11 @@ def stream_user_ages():
 
 def calculate_average_age():
     """
-    Calculates the average age using the generator without loading 
+    Calculates the mean age using the generator without loading 
     the entire dataset into memory
     
     Returns:
-        float - calculated average age
+        float - calculated mean age
     """
     total_age = 0
     count = 0
@@ -52,10 +52,11 @@ def calculate_average_age():
         total_age += age
         count += 1
     
+    # Calculate result after loop completes
     if count > 0:
-        mean_age = total_age / count
-        print(f"Average age of users: {mean_age}")
-        return mean_age
+        result = total_age / count
+        print(f"Average age of users: {result}")
+        return result
     else:
         print("No users found in database")
         return 0
