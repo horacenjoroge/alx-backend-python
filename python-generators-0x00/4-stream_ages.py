@@ -63,4 +63,4 @@ def calculate_average_age():
 
 # Run the calculation when script is executed
 if __name__ == "__main__":
-    calculate_mean_age()
+    calculate_average_age()
