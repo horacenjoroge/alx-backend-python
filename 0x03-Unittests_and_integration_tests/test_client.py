@@ -27,7 +27,7 @@ class TestGithubOrgClient(unittest.TestCase):
         self.assertEqual(result, test_payload)
 
     def test_public_repos_url(self):
-        """Test that _public_repos_url returns expected URL from org payload."""
+        """Test that _public_repos_url returns expected URL from payload."""
         known_payload = {
             "repos_url": "https://api.github.com/orgs/google/repos"
         }
@@ -48,9 +48,9 @@ class TestGithubOrgClient(unittest.TestCase):
         ]
         mock_get_json.return_value = test_payload
 
+        test_url = "https://api.github.com/orgs/google/repos"
         with patch('client.GithubOrgClient._public_repos_url',
-                   new_callable=lambda: property(
-                       lambda self: "https://api.github.com/orgs/google/repos")):
+                   new_callable=lambda: property(lambda self: test_url)):
             client = GithubOrgClient("test")
             result = client.public_repos()
 
@@ -62,4 +62,3 @@ class TestGithubOrgClient(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-    
