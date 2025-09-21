@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
 from .models import User, Conversation, Message
 from .serializers import ConversationSerializer, MessageSerializer
 from django.shortcuts import get_object_or_404
@@ -9,11 +10,13 @@ from django.shortcuts import get_object_or_404
 
 class ConversationViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for listing and creating conversations.
+    ViewSet for listing and creating conversations with filtering.
     """
     queryset = Conversation.objects.all()
     serializer_class = ConversationSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['conversation_id', 'created_at']
 
     def get_queryset(self):
         """
@@ -51,11 +54,13 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
 class MessageViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for listing and sending messages in conversations.
+    ViewSet for listing and sending messages in conversations with filtering.
     """
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['message_id', 'conversation', 'sender', 'recipient', 'sent_at']
 
     def get_queryset(self):
         """
