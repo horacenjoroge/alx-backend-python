@@ -1,4 +1,4 @@
-# chats/models.py
+# messaging_app/chats/models.py
 import uuid
 from django.contrib.auth.models import AbstractUser
 from django.db import models
@@ -20,6 +20,10 @@ class User(AbstractUser):
         editable=False,
         db_index=True
     )
+    first_name = models.CharField(max_length=150, null=False, blank=False)
+    last_name = models.CharField(max_length=150, null=False, blank=False)
+    email = models.EmailField(unique=True, null=False, blank=False)
+    password_hash = models.CharField(max_length=128, null=False, blank=False)
     phone_number = models.CharField(max_length=20, null=True, blank=True)
     role = models.CharField(
         max_length=10,
@@ -38,6 +42,9 @@ class User(AbstractUser):
         indexes = [
             models.Index(fields=['email'], name='idx_user_email'),
             models.Index(fields=['user_id'], name='idx_user_id'),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['email'], name='unique_user_email')
         ]
 
     def __str__(self):
@@ -86,6 +93,11 @@ class Message(models.Model):
         on_delete=models.CASCADE,
         related_name='sent_messages'
     )
+    recipient = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='received_messages'
+    )
     conversation = models.ForeignKey(
         Conversation,
         on_delete=models.CASCADE,
@@ -99,10 +111,11 @@ class Message(models.Model):
         indexes = [
             models.Index(fields=['message_id'], name='idx_msg_id'),
             models.Index(fields=['sender'], name='idx_msg_sender'),
+            models.Index(fields=['recipient'], name='idx_msg_recipient'),
             models.Index(fields=['conversation'], name='idx_msg_conv'),
             models.Index(fields=['sent_at'], name='idx_msg_sent_at'),
         ]
         ordering = ['-sent_at']
 
     def __str__(self):
-        return f"Message from {self.sender} at {self.sent_at}"
+        return f"Message from {self.sender} to {self.recipient} at {self.sent_at}"
