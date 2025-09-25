@@ -1,18 +1,33 @@
+"""
+URL configuration for messaging_app project.
+
+The `urlpatterns` list routes URLs to views. For more information please see:
+    https://docs.djangoproject.com/en/5.2/topics/http/urls/
+"""
+from django.contrib import admin
 from django.urls import path, include
-from rest_framework import routers
-from rest_framework_nested.routers import NestedDefaultRouter
-from .views import ConversationViewSet, MessageViewSet
-
-# Top-level router for conversations and messages
-router = routers.DefaultRouter()
-router.register(r'conversations', ConversationViewSet, basename='conversation')
-router.register(r'messages', MessageViewSet, basename='message')
-
-# Nested router for messages under conversations
-conversation_router = NestedDefaultRouter(router, r'conversations', lookup='conversation')
-conversation_router.register(r'messages', MessageViewSet, basename='conversation-message')
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+    TokenVerifyView,
+    TokenBlacklistView,
+)
 
 urlpatterns = [
-    path('', include(router.urls)),
-    path('', include(conversation_router.urls)),
+    # Admin interface
+    path('admin/', admin.site.urls),
+    
+    # API endpoints
+    path('api/', include('chats.urls')),
+    
+    # Django REST Framework browsable API authentication
+    path('api-auth/', include('rest_framework.urls')),
+    
+    # JWT Authentication endpoints
+    path('api/auth/', include([
+        path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+        path('refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+        path('verify/', TokenVerifyView.as_view(), name='token_verify'),
+        path('logout/', TokenBlacklistView.as_view(), name='token_blacklist'),
+    ])),
 ]
