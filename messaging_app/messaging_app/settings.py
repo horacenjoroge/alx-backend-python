@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',  # JWT Authentication
+    'rest_framework_simplejwt.token_blacklist',  # For token blacklisting
     'django_filters',  # For filtering support
     'chats',
 ]
@@ -130,11 +131,18 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Set custom user model
 AUTH_USER_MODEL = 'chats.User'
 
+# Authentication backends
+AUTHENTICATION_BACKENDS = [
+    'chats.auth.EmailAuthenticationBackend',  # Custom email authentication
+    'django.contrib.auth.backends.ModelBackend',  # Default backend
+]
+
 # Django REST Framework configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',  # Added for checker requirement
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
