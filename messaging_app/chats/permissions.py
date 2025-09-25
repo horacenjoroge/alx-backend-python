@@ -5,6 +5,35 @@ from rest_framework import permissions
 from .models import Conversation, Message
 
 
+class IsParticipantOfConversation(permissions.BasePermission):
+    """
+    Custom permission to only allow participants of a conversation to access conversation data.
+    - Allow only authenticated users to access the API
+    - Allow only participants in a conversation to send, view, update and delete messages
+    """
+
+    def has_permission(self, request, view):
+        """
+        Allow only authenticated users to access the API.
+        """
+        return request.user and request.user.is_authenticated
+
+    def has_object_permission(self, request, view, obj):
+        """
+        Allow only participants in a conversation to send, view, update and delete messages.
+        """
+        # Handle Message objects
+        if isinstance(obj, Message):
+            conversation = obj.conversation
+            return conversation.participants.filter(user_id=request.user.user_id).exists()
+        
+        # Handle Conversation objects
+        elif isinstance(obj, Conversation):
+            return obj.participants.filter(user_id=request.user.user_id).exists()
+        
+        return False
+
+
 class IsOwnerOrReadOnly(permissions.BasePermission):
     """
     Custom permission to only allow owners of an object to edit it.

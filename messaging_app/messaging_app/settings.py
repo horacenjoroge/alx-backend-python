@@ -145,7 +145,7 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.BasicAuthentication',  # Added for checker requirement
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+        'chats.permissions.IsParticipantOfConversation',  # Set custom permission globally
     ],
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',

@@ -1,11 +1,86 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import User, Conversation, Message
-from .serializers import ConversationSerializer, MessageSerializer
+from .serializers import ConversationSerializer, MessageSerializer, UserSerializer, UserPublicSerializer
+from .permissions import (
+    IsParticipantOfConversation,
+    IsConversationParticipant, 
+    IsMessageSenderOrRecipient, 
+    CanManageUsers,
+    ConversationPermission,
+    MessagePermission,
+    IsUserSelf
+)
 from django.shortcuts import get_object_or_404
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for user registration and management.
+    """
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['role', 'email']
+
+    def get_permissions(self):
+        """
+        Instantiate and return the list of permissions that this view requires.
+        """
+        if self.action == 'create':
+            # Allow registration without authentication
+            permission_classes = [AllowAny]
+        elif self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
+            # Users can only manage their own profile, admins can manage any
+            permission_classes = [IsAuthenticated, IsUserSelf | CanManageUsers]
+        else:
+            # For list action, use custom permission
+            permission_classes = [IsAuthenticated, CanManageUsers]
+        
+        return [permission() for permission in permission_classes]
+
+    def get_serializer_class(self):
+        """
+        Use different serializers based on the action.
+        """
+        if self.action in ['list', 'retrieve']:
+            return UserPublicSerializer
+        return UserSerializer
+
+    def get_queryset(self):
+        """
+        Return users based on permissions and filters.
+        """
+        if hasattr(self.request.user, 'role') and self.request.user.role == 'admin':
+            return User.objects.all()
+        elif self.action == 'list':
+            # For listing users, return all users (for finding conversation participants)
+            return User.objects.all()
+        else:
+            # For other actions, return only current user
+            return User.objects.filter(user_id=self.request.user.user_id)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def me(self, request):
+        """
+        Get current user's information.
+        """
+        serializer = UserPublicSerializer(request.user)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['put', 'patch'], permission_classes=[IsAuthenticated])
+    def update_profile(self, request):
+        """
+        Update current user's profile.
+        """
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(UserPublicSerializer(request.user).data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ConversationViewSet(viewsets.ModelViewSet):
@@ -14,7 +89,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
     """
     queryset = Conversation.objects.all()
     serializer_class = ConversationSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsParticipantOfConversation]  # Apply custom permission
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['conversation_id', 'created_at']
 
@@ -32,7 +107,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
         conversation.participants.add(self.request.user)
         return conversation
 
-    @action(detail=True, methods=['post'], url_path='add-participant')
+    @action(detail=True, methods=['post'], url_path='add-participant', 
+            permission_classes=[IsParticipantOfConversation])
     def add_participant(self, request, pk=None):
         """
         Custom action to add a participant to an existing conversation.
@@ -46,10 +122,21 @@ class ConversationViewSet(viewsets.ModelViewSet):
             user = User.objects.get(user_id=user_id)
             if conversation.participants.filter(user_id=user_id).exists():
                 return Response({"error": "User is already a participant"}, status=status.HTTP_400_BAD_REQUEST)
+            
             conversation.participants.add(user)
             return Response({"message": f"User {user.email} added to conversation"}, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['delete'], url_path='leave',
+            permission_classes=[IsParticipantOfConversation])
+    def leave_conversation(self, request, pk=None):
+        """
+        Allow user to leave a conversation.
+        """
+        conversation = self.get_object()
+        conversation.participants.remove(request.user)
+        return Response({"message": "You have left the conversation"}, status=status.HTTP_200_OK)
 
 
 class MessageViewSet(viewsets.ModelViewSet):
@@ -58,7 +145,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     """
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsParticipantOfConversation]  # Apply custom permission
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['message_id', 'conversation', 'sender', 'recipient', 'sent_at']
 
@@ -66,7 +153,8 @@ class MessageViewSet(viewsets.ModelViewSet):
         """
         Return messages for conversations the authenticated user is part of.
         """
-        return Message.objects.filter(conversation__participants=self.request.user)
+        user_conversations = Conversation.objects.filter(participants=self.request.user)
+        return Message.objects.filter(conversation__in=user_conversations).order_by('-sent_at')
 
     def perform_create(self, serializer):
         """
@@ -76,15 +164,26 @@ class MessageViewSet(viewsets.ModelViewSet):
         recipient_id = self.request.data.get('recipient')
         
         if not conversation_id or not recipient_id:
-            return Response({"error": "conversation and recipient are required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "conversation and recipient are required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         conversation = get_object_or_404(Conversation, conversation_id=conversation_id)
         recipient = get_object_or_404(User, user_id=recipient_id)
         
+        # Check if current user is a participant in the conversation
         if not conversation.participants.filter(user_id=self.request.user.user_id).exists():
-            return Response({"error": "You are not a participant in this conversation"}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"error": "You are not a participant in this conversation"}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
         
+        # Check if recipient is a participant in the conversation
         if not conversation.participants.filter(user_id=recipient_id).exists():
-            return Response({"error": "Recipient is not a participant in this conversation"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Recipient is not a participant in this conversation"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         serializer.save(sender=self.request.user, conversation=conversation, recipient=recipient)
