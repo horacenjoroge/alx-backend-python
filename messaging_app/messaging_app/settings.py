@@ -152,7 +152,7 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'chats.pagination.MessagePagination',  # Default pagination
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',  # PageNumberPagination reference
     'PAGE_SIZE': 20  # 20 messages per page
 }
 
