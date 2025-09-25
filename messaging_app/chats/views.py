@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import User, Conversation, Message
 from .serializers import ConversationSerializer, MessageSerializer, UserSerializer, UserPublicSerializer
 from .permissions import (
@@ -14,6 +15,8 @@ from .permissions import (
     MessagePermission,
     IsUserSelf
 )
+from .filters import MessageFilter, ConversationFilter, UserFilter
+from .pagination import MessagePagination, ConversationPagination, UserPagination
 from django.shortcuts import get_object_or_404
 
 
@@ -23,8 +26,12 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['role', 'email']
+    pagination_class = UserPagination
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = UserFilter
+    search_fields = ['email', 'first_name', 'last_name']
+    ordering_fields = ['created_at', 'email', 'first_name', 'last_name']
+    ordering = ['-created_at']
 
     def get_permissions(self):
         """
@@ -90,8 +97,12 @@ class ConversationViewSet(viewsets.ModelViewSet):
     queryset = Conversation.objects.all()
     serializer_class = ConversationSerializer
     permission_classes = [IsParticipantOfConversation]  # Apply custom permission
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['conversation_id', 'created_at']
+    pagination_class = ConversationPagination
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = ConversationFilter
+    search_fields = ['participants__email', 'participants__first_name', 'participants__last_name']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         """
@@ -141,13 +152,17 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
 class MessageViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for listing and sending messages in conversations with filtering.
+    ViewSet for listing and sending messages in conversations with filtering and pagination.
     """
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
     permission_classes = [IsParticipantOfConversation]  # Apply custom permission
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ['message_id', 'conversation', 'sender', 'recipient', 'sent_at']
+    pagination_class = MessagePagination  # 20 messages per page
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_class = MessageFilter  # Apply custom filter
+    search_fields = ['message_body', 'sender__email', 'recipient__email']
+    ordering_fields = ['sent_at', 'sender__email', 'recipient__email']
+    ordering = ['-sent_at']
 
     def get_queryset(self):
         """
@@ -187,3 +202,31 @@ class MessageViewSet(viewsets.ModelViewSet):
             )
         
         serializer.save(sender=self.request.user, conversation=conversation, recipient=recipient)
+
+    @action(detail=False, methods=['get'], url_path='my-messages')
+    def my_messages(self, request):
+        """
+        Get all messages sent by the current user.
+        """
+        messages = self.get_queryset().filter(sender=request.user)
+        page = self.paginate_queryset(messages)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(messages, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='received-messages')
+    def received_messages(self, request):
+        """
+        Get all messages received by the current user.
+        """
+        messages = self.get_queryset().filter(recipient=request.user)
+        page = self.paginate_queryset(messages)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(messages, many=True)
+        return Response(serializer.data)
