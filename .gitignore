@@ -1,0 +1,4 @@
+*.pyc pycache/ *.pyo *.pyd .Python *.sqlite3 db.sqlite3 *.log
+.env .env.local *.env
+venv/ .env/ env/ *.venv
+.DS_Store

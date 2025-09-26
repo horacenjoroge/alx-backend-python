@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.contrib.auth.hashers import make_password
 from .models import User, Conversation, Message
 
 
@@ -6,12 +7,20 @@ class UserSerializer(serializers.ModelSerializer):
     """
     Serializer for the User model, exposing basic user information.
     """
-    email = serializers.CharField(required=True)
+    password = serializers.CharField(write_only=True, min_length=8)
+    password_confirm = serializers.CharField(write_only=True)
 
     class Meta:
         model = User
-        fields = ['user_id', 'first_name', 'last_name', 'email', 'phone_number', 'role', 'created_at']
+        fields = [
+            'user_id', 'username', 'first_name', 'last_name', 'email', 
+            'phone_number', 'role', 'created_at', 'password', 'password_confirm'
+        ]
         read_only_fields = ['user_id', 'created_at']
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'password_confirm': {'write_only': True},
+        }
 
     def validate_email(self, value):
         """
@@ -21,13 +30,58 @@ class UserSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("A user with this email already exists.")
         return value
 
+    def validate(self, data):
+        """
+        Validate that password and password_confirm match.
+        """
+        if 'password' in data and 'password_confirm' in data:
+            if data['password'] != data['password_confirm']:
+                raise serializers.ValidationError("Passwords do not match.")
+        return data
+
+    def create(self, validated_data):
+        """
+        Create a new user with hashed password.
+        """
+        validated_data.pop('password_confirm', None)
+        password = validated_data.pop('password')
+        user = User.objects.create(**validated_data)
+        user.set_password(password)
+        user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        """
+        Update user instance, handling password changes.
+        """
+        validated_data.pop('password_confirm', None)
+        password = validated_data.pop('password', None)
+        
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        if password:
+            instance.set_password(password)
+        
+        instance.save()
+        return instance
+
+
+class UserPublicSerializer(serializers.ModelSerializer):
+    """
+    Public serializer for User model - excludes sensitive information.
+    """
+    class Meta:
+        model = User
+        fields = ['user_id', 'first_name', 'last_name', 'email', 'role']
+
 
 class MessageSerializer(serializers.ModelSerializer):
     """
     Serializer for the Message model, including sender and recipient details.
     """
-    sender = UserSerializer(read_only=True)
-    recipient = UserSerializer(read_only=True)
+    sender = UserPublicSerializer(read_only=True)
+    recipient = UserPublicSerializer(read_only=True)
     message_body = serializers.CharField(required=True)
 
     class Meta:
@@ -50,7 +104,7 @@ class ConversationSerializer(serializers.ModelSerializer):
     """
     Serializer for the Conversation model, including participants and nested messages.
     """
-    participants = UserSerializer(many=True, read_only=True)
+    participants = UserPublicSerializer(many=True, read_only=True)
     messages = serializers.SerializerMethodField()
 
     class Meta:
