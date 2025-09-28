@@ -58,8 +58,7 @@ MIDDLEWARE = [
     'chats.middleware.RequestLoggingMiddleware',          # Task 1: Logging
     'chats.middleware.RestrictAccessByTimeMiddleware',    # Task 2: Time restriction
     'chats.middleware.OffensiveLanguageMiddleware',       # Task 3: Rate limiting
-    'chats.middleware.RolePermissionMiddleware',          # Task 4: Role permissions
-
+    'chats.middleware.RolepermissionMiddleware',          # Task 4: Role permissions (updated name)
 ]
 
 ROOT_URLCONF = 'messaging_app.urls'
