@@ -33,14 +33,17 @@ def inbox(request):
     """
     Display inbox with unread messages.
     Task 4: Custom ORM Manager for Unread Messages
+    Uses .only() to retrieve only necessary fields for optimization
     """
-    # Use custom manager to get unread messages with optimized query
+    # Use custom manager to get unread messages with optimized query using .only()
     unread_messages = Message.unread.unread_for_user(request.user)
     
-    # Get all messages for the user with optimization
+    # Get all messages for the user with optimization using .only()
     all_messages = Message.objects.filter(
         receiver=request.user
-    ).select_related('sender').prefetch_related('history')
+    ).select_related('sender').prefetch_related('history').only(
+        'id', 'sender', 'receiver', 'content', 'timestamp', 'read', 'edited'
+    )
     
     context = {
         'unread_messages': unread_messages,
