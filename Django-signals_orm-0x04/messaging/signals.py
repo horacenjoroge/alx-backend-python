@@ -79,22 +79,33 @@ def delete_user_related_data(sender, instance, **kwargs):
     Signal handler that cleans up user-related data when a user is deleted.
     Task 2: Use Signals for Deleting User-Related Data
     
-    Note: This signal will be triggered when a User is deleted.
-    Related data (messages, notifications, message histories) will be 
-    automatically deleted due to CASCADE foreign keys, but this signal
-    can be used for additional cleanup or logging.
+    This post_delete signal on the User model deletes all messages, notifications,
+    and message histories associated with the user.
     """
     # Log the deletion
     print(f"User {instance.username} deleted. Cleaning up related data...")
     
-    # Get counts before deletion (for logging purposes)
-    sent_messages_count = instance.sent_messages.count()
-    received_messages_count = instance.received_messages.count()
-    notifications_count = instance.notifications.count()
+    # Delete all messages sent by the user
+    sent_messages = Message.objects.filter(sender=instance)
+    sent_messages_count = sent_messages.count()
+    sent_messages.delete()
+    
+    # Delete all messages received by the user
+    received_messages = Message.objects.filter(receiver=instance)
+    received_messages_count = received_messages.count()
+    received_messages.delete()
+    
+    # Delete all notifications for the user
+    notifications = Notification.objects.filter(user=instance)
+    notifications_count = notifications.count()
+    notifications.delete()
+    
+    # Delete all message histories edited by the user
+    message_histories = MessageHistory.objects.filter(edited_by=instance)
+    message_histories_count = message_histories.count()
+    message_histories.delete()
     
     print(f"Deleted {sent_messages_count} sent messages")
     print(f"Deleted {received_messages_count} received messages")
     print(f"Deleted {notifications_count} notifications")
-    
-    # Note: Actual deletion happens automatically via CASCADE
-    # Additional custom cleanup logic can be added here if needed
+    print(f"Deleted {message_histories_count} message histories")
