@@ -4,8 +4,6 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
-from django.views.decorators.cache import cache_page
-from django.utils.decorators import method_decorator
 from .models import User, Conversation, Message
 from .serializers import ConversationSerializer, MessageSerializer, UserSerializer, UserPublicSerializer
 from .permissions import (
@@ -155,7 +153,6 @@ class ConversationViewSet(viewsets.ModelViewSet):
 class MessageViewSet(viewsets.ModelViewSet):
     """
     ViewSet for listing and sending messages in conversations with filtering and pagination.
-    Task 5: Cache applied to message list views for 60 seconds
     """
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
@@ -166,13 +163,6 @@ class MessageViewSet(viewsets.ModelViewSet):
     search_fields = ['message_body', 'sender__email', 'recipient__email']
     ordering_fields = ['sent_at', 'sender__email', 'recipient__email']
     ordering = ['-sent_at']
-
-    @method_decorator(cache_page(60))  # Cache for 60 seconds as per Task 5
-    def list(self, request, *args, **kwargs):
-        """
-        List all messages in conversations with 60-second cache timeout.
-        """
-        return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
         """
@@ -214,10 +204,9 @@ class MessageViewSet(viewsets.ModelViewSet):
         serializer.save(sender=self.request.user, conversation=conversation, recipient=recipient)
 
     @action(detail=False, methods=['get'], url_path='my-messages')
-    @method_decorator(cache_page(60))  # Cache for 60 seconds
     def my_messages(self, request):
         """
-        Get all messages sent by the current user with 60-second cache.
+        Get all messages sent by the current user.
         """
         messages = self.get_queryset().filter(sender=request.user)
         page = self.paginate_queryset(messages)
@@ -229,10 +218,9 @@ class MessageViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='received-messages')
-    @method_decorator(cache_page(60))  # Cache for 60 seconds
     def received_messages(self, request):
         """
-        Get all messages received by the current user with 60-second cache.
+        Get all messages received by the current user.
         """
         messages = self.get_queryset().filter(recipient=request.user)
         page = self.paginate_queryset(messages)
