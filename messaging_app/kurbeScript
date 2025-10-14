@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Task 0: Install Kubernetes and Set Up a Local Cluster
+# This script starts Minikube, verifies the cluster, and retrieves pods
+
+echo "=========================================="
+echo "Starting Kubernetes Cluster with Minikube"
+echo "=========================================="
+echo ""
+
+# Start Minikube cluster
+echo "🚀 Starting Minikube cluster..."
+minikube start --driver=docker
+
+# Check if Minikube started successfully
+if [ $? -eq 0 ]; then
+    echo "✅ Minikube cluster started successfully!"
+    echo ""
+else
+    echo "❌ Failed to start Minikube cluster"
+    exit 1
+fi
+
+# Verify that the cluster is running
+echo "=========================================="
+echo "Verifying Cluster Information"
+echo "=========================================="
+echo ""
+kubectl cluster-info
+
+echo ""
+echo "=========================================="
+echo "Retrieving Available Pods"
+echo "=========================================="
+echo ""
+
+# Get all pods across all namespaces
+kubectl get pods --all-namespaces
+
+echo ""
+echo "=========================================="
+echo "Cluster Setup Complete!"
+echo "=========================================="
+echo ""
+echo "✅ Kubernetes cluster is ready to use"
+echo "📊 Use 'kubectl get nodes' to see cluster nodes"
+echo "🔍 Use 'kubectl get pods -A' to see all pods"
+echo "🛑 Use 'minikube stop' to stop the cluster"
+echo "🗑️  Use 'minikube delete' to delete the cluster"
