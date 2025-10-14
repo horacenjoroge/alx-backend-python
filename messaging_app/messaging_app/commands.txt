@@ -1,0 +1,36 @@
+# Commands used to apply Ingress configuration
+
+# 1. Enable Nginx Ingress controller in Minikube
+minikube addons enable ingress
+
+# 2. Verify Ingress controller is running
+kubectl get pods -n ingress-nginx
+
+# 3. Apply the Ingress resource
+kubectl apply -f ingress.yaml
+
+# 4. Verify Ingress was created
+kubectl get ingress
+kubectl describe ingress django-messaging-ingress
+
+# 5. For macOS with Docker driver, expose the ingress controller
+# (Keep this terminal open while testing)
+minikube service ingress-nginx-controller -n ingress-nginx --url
+
+# Output example:
+# http://127.0.0.1:50171
+# http://127.0.0.1:50172
+
+# 6. Update /etc/hosts to use domain name
+echo "127.0.0.1 django-messaging.local" | sudo tee -a /etc/hosts
+
+# 7. Test the Ingress (replace port with your actual port from step 5)
+curl http://127.0.0.1:50171
+curl http://127.0.0.1:50171/api
+curl http://django-messaging.local:50171
+
+# Expected: 404 from nginx (this is correct - means ingress is routing)
+# The 404 occurs because Django app doesn't have routes configured
+
+# Note: On production Kubernetes (AWS/GCP/Azure), ingress works on port 80
+# The port-forwarding is only needed for local Minikube with Docker driver on macOS
