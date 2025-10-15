@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: django-messaging-green
+  labels:
+    app: django-messaging
+    version: green
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: django-messaging
+      version: green
+  template:
+    metadata:
+      labels:
+        app: django-messaging
+        version: green
+    spec:
+      containers:
+      - name: django-app
+        image: messaging-app:2.0
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8000
+        env:
+        - name: APP_VERSION
+          value: "2.0-green"
+        - name: DB_NAME
+          value: "messaging_db"
+        - name: DB_USER
+          value: "messaging_user"
+        - name: DB_PASSWORD
+          value: "secure_password123"
+        - name: DB_HOST
+          value: "db"
+        - name: DB_PORT
+          value: "3306"

@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# Task 4: Blue-Green Deployment Strategy
+# Deploys blue and green versions, then switches traffic between them
+
+echo "=========================================="
+echo "Blue-Green Deployment Strategy"
+echo "=========================================="
+echo ""
+
+# Step 1: Delete old deployment if exists
+echo "🧹 Cleaning up old deployments..."
+kubectl delete deployment django-messaging-app 2>/dev/null || true
+echo ""
+
+# Step 2: Deploy Blue version
+echo "🔵 Deploying Blue version (v1.0)..."
+kubectl apply -f blue_deployment.yaml
+
+if [ $? -eq 0 ]; then
+    echo "✅ Blue deployment created successfully!"
+else
+    echo "❌ Failed to create blue deployment"
+    exit 1
+fi
+echo ""
+
+# Step 3: Wait for Blue pods to be ready
+echo "⏳ Waiting for Blue pods to be ready..."
+kubectl wait --for=condition=ready pod -l version=blue --timeout=120s
+echo "✅ Blue pods are ready!"
+echo ""
+
+# Step 4: Apply/Update the service (points to blue initially)
+echo "🔧 Creating/Updating service to point to Blue..."
+kubectl apply -f kubeservice.yaml
+echo "✅ Service is now routing to Blue version"
+echo ""
+
+# Step 5: Check Blue deployment logs for errors
+echo "=========================================="
+echo "Checking Blue Deployment Logs"
+echo "=========================================="
+echo ""
+BLUE_POD=$(kubectl get pods -l version=blue -o jsonpath='{.items[0].metadata.name}')
+echo "📋 Logs from Blue pod: $BLUE_POD"
+kubectl logs $BLUE_POD --tail=20
+echo ""
+
+# Step 6: Deploy Green version
+echo "=========================================="
+echo "🟢 Deploying Green version (v2.0)..."
+echo "=========================================="
+echo ""
+kubectl apply -f green_deployment.yaml
+
+if [ $? -eq 0 ]; then
+    echo "✅ Green deployment created successfully!"
+else
+    echo "❌ Failed to create green deployment"
+    exit 1
+fi
+echo ""
+
+# Step 7: Wait for Green pods to be ready
+echo "⏳ Waiting for Green pods to be ready..."
+kubectl wait --for=condition=ready pod -l version=green --timeout=120s
+echo "✅ Green pods are ready!"
+echo ""
+
+# Step 8: Check Green deployment logs for errors
+echo "=========================================="
+echo "Checking Green Deployment Logs"
+echo "=========================================="
+echo ""
+GREEN_POD=$(kubectl get pods -l version=green -o jsonpath='{.items[0].metadata.name}')
+echo "📋 Logs from Green pod: $GREEN_POD"
+kubectl logs $GREEN_POD --tail=20
+echo ""
+
+# Step 9: Show current state
+echo "=========================================="
+echo "Current Deployment State"
+echo "=========================================="
+echo ""
+echo "All Pods:"
+kubectl get pods -l app=django-messaging
+echo ""
+echo "Current Service Selector (routing traffic to):"
+kubectl get service django-messaging-service -o jsonpath='{.spec.selector}' | jq '.'
+echo ""
+
+# Step 10: Instructions for switching traffic
+echo "=========================================="
+echo "Traffic Switching Instructions"
+echo "=========================================="
+echo ""
+echo "✅ Both Blue and Green deployments are running!"
+echo ""
+echo "🔵 Currently serving: Blue version (v1.0)"
+echo ""
+echo "To switch traffic to Green version, run:"
+echo "  kubectl patch service django-messaging-service -p '{\"spec\":{\"selector\":{\"version\":\"green\"}}}'"
+echo ""
+echo "To switch back to Blue version, run:"
+echo "  kubectl patch service django-messaging-service -p '{\"spec\":{\"selector\":{\"version\":\"blue\"}}}'"
+echo ""
+echo "To verify which version is active:"
+echo "  kubectl get service django-messaging-service -o jsonpath='{.spec.selector}'"
+echo ""
