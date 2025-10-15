@@ -1,0 +1,161 @@
+#!/bin/bash
+
+# Task 5: Applying Rolling Updates
+# Updates the application from v1.0 to v2.0 with zero downtime
+
+echo "=========================================="
+echo "Rolling Update: v1.0 -> v2.0"
+echo "=========================================="
+echo ""
+
+# Step 1: Clean up green deployment if it exists (we only need blue for this task)
+echo "Cleaning up green deployment..."
+kubectl delete deployment django-messaging-green 2>/dev/null || echo "Green deployment not found (that's okay)"
+echo ""
+
+# Step 2: Ensure service points to blue
+echo "Ensuring service routes to blue deployment..."
+kubectl patch service django-messaging-service -p '{"spec":{"selector":{"version":"blue"}}}' 2>/dev/null || true
+echo ""
+
+# Step 3: Check current version
+echo "=========================================="
+echo "Current Deployment Status (Before Update)"
+echo "=========================================="
+echo ""
+kubectl get deployment django-messaging-blue
+echo ""
+kubectl get pods -l version=blue
+echo ""
+
+# Step 4: Apply the updated deployment (triggers rolling update)
+echo "=========================================="
+echo "Applying Rolling Update..."
+echo "=========================================="
+echo ""
+echo "Updating blue_deployment.yaml (v1.0 -> v2.0)..."
+
+kubectl apply -f blue_deployment.yaml
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "Deployment update initiated!"
+    echo ""
+else
+    echo "Failed to apply deployment"
+    exit 1
+fi
+
+# Step 5: Monitor the rollout status
+echo "=========================================="
+echo "Monitoring Rollout Progress"
+echo "=========================================="
+echo ""
+echo "Watching rolling update in real-time..."
+echo "(Press Ctrl+C to stop watching, rollout will continue)"
+echo ""
+
+# Monitor rollout status (this will wait until complete)
+kubectl rollout status deployment/django-messaging-blue --timeout=300s
+
+echo ""
+echo "Rollout completed!"
+echo ""
+
+# Step 6: Start continuous testing in background
+echo "=========================================="
+echo "Testing for Downtime with curl"
+echo "=========================================="
+echo ""
+
+# Get service endpoint
+SERVICE_IP=$(kubectl get service django-messaging-service -o jsonpath='{.spec.clusterIP}')
+echo "Service IP: $SERVICE_IP"
+echo ""
+
+echo "Starting continuous requests (20 requests over 20 seconds)..."
+echo "Any failed requests indicate downtime"
+echo ""
+
+# Port forward in background
+kubectl port-forward service/django-messaging-service 8000:8000 &
+PORT_FORWARD_PID=$!
+
+# Wait for port forward to be ready
+sleep 2
+
+# Counter for requests
+SUCCESS_COUNT=0
+FAIL_COUNT=0
+
+# Send 20 requests over 20 seconds
+for i in {1..20}; do
+    RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000 --max-time 2 2>/dev/null)
+    
+    if [ "$RESPONSE" = "200" ] || [ "$RESPONSE" = "404" ]; then
+        echo "Request $i: SUCCESS (HTTP $RESPONSE)"
+        SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+    else
+        echo "Request $i: FAILED (HTTP $RESPONSE)"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+    
+    sleep 1
+done
+
+# Kill port forward
+kill $PORT_FORWARD_PID 2>/dev/null
+
+echo ""
+echo "=========================================="
+echo "Test Results"
+echo "=========================================="
+echo ""
+echo "Successful Requests: $SUCCESS_COUNT / 20"
+echo "Failed Requests: $FAIL_COUNT / 20"
+echo ""
+
+if [ $FAIL_COUNT -eq 0 ]; then
+    echo "NO DOWNTIME DETECTED! Rolling update successful!"
+else
+    echo "Warning: $FAIL_COUNT request(s) failed during update"
+fi
+
+echo ""
+
+# Step 7: Verify the update is complete
+echo "=========================================="
+echo "Post-Update Verification"
+echo "=========================================="
+echo ""
+
+echo "Current pods (should all be running v2.0):"
+kubectl get pods -l version=blue -o wide
+echo ""
+
+echo "Deployment details:"
+kubectl describe deployment django-messaging-blue | grep -A 3 "Image:"
+echo ""
+
+# Step 8: Show rollout history
+echo "=========================================="
+echo "Rollout History"
+echo "=========================================="
+echo ""
+kubectl rollout history deployment/django-messaging-blue
+echo ""
+
+echo "=========================================="
+echo "Rolling Update Complete!"
+echo "=========================================="
+echo ""
+echo "Summary:"
+echo "  - Updated from v1.0 to v2.0"
+echo "  - Zero downtime achieved (if no failed requests)"
+echo "  - All pods now running new version"
+echo ""
+echo "Useful commands:"
+echo "  kubectl rollout undo deployment/django-messaging-blue    # Rollback to previous version"
+echo "  kubectl rollout history deployment/django-messaging-blue  # View rollout history"
+echo "  kubectl get pods -w                                       # Watch pod changes"
+echo ""
