@@ -4,6 +4,8 @@ pipeline {
     environment {
         PYTHONUNBUFFERED = '1'
         DJANGO_SETTINGS_MODULE = 'messaging_app.settings'
+        DOCKER_IMAGE = 'horace/messaging-app'
+        DOCKER_TAG = "${env.BUILD_NUMBER}"
     }
     
     stages {
@@ -98,6 +100,40 @@ EOF
                     reportFiles: 'index.html',
                     reportName: 'Coverage Report'
                 ])
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                echo '🐳 Building Docker image...'
+                script {
+                    dir('messaging_app') {
+                        sh """
+                            docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} .
+                            docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Push to Docker Hub') {
+            steps {
+                echo '📤 Pushing Docker image to Docker Hub...'
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )]) {
+                        sh """
+                            echo \$DOCKER_PASSWORD | docker login -u \$DOCKER_USERNAME --password-stdin
+                            docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                            docker push ${DOCKER_IMAGE}:latest
+                            docker logout
+                        """
+                    }
+                }
             }
         }
     }
