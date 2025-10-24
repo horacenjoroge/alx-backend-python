@@ -10,7 +10,9 @@ pipeline {
         stage('Checkout') {
             steps {
                 echo '📦 Checking out code from GitHub...'
-                checkout scm
+                git branch: 'main',
+                    credentialsId: 'github-credentials',
+                    url: 'https://github.com/horacenjoroge/alx-backend-python.git'
             }
         }
         
@@ -32,8 +34,8 @@ pipeline {
                 sh '''
                     cd messaging_app
                     . venv/bin/activate
-                    pip install -r requirements.txt
-                    pip install pytest pytest-django pytest-cov flake8 coverage
+                    pip3 install -r messaging_app/requirements.txt
+                    pip3 install pytest pytest-django pytest-cov flake8 coverage
                 '''
             }
         }
