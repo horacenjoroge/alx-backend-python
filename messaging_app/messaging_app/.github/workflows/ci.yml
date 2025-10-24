@@ -47,7 +47,21 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r messaging_app/requirements.txt
-        pip install pytest pytest-django pytest-cov mysqlclient
+        pip install pytest pytest-django pytest-cov mysqlclient flake8 coverage
+    
+    - name: Run flake8 linting
+      run: |
+        cd messaging_app
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Check code quality with flake8 (strict)
+      run: |
+        cd messaging_app
+        # Fail build if there are Python syntax errors or undefined names
+        flake8 chats/ --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=migrations
+        # Fail build on other linting errors (more lenient)
+        flake8 chats/ --count --max-line-length=127 --statistics --exclude=migrations --exit-zero
     
     - name: Wait for MySQL to be ready
       run: |
@@ -72,7 +86,7 @@ jobs:
         python manage.py makemigrations --noinput
         python manage.py migrate --noinput
     
-    - name: Run tests
+    - name: Run tests with coverage
       env:
         DB_NAME: test_messaging_db
         DB_USER: test_user
@@ -82,7 +96,10 @@ jobs:
         DJANGO_SETTINGS_MODULE: messaging_app.settings
       run: |
         cd messaging_app
-        pytest --verbose --junit-xml=test-results.xml --cov=. --cov-report=xml --cov-report=html || true
+        coverage run -m pytest --verbose --junit-xml=test-results.xml
+        coverage report -m
+        coverage xml
+        coverage html
     
     - name: Upload test results
       uses: actions/upload-artifact@v3
@@ -91,9 +108,18 @@ jobs:
         name: test-results
         path: messaging_app/test-results.xml
     
-    - name: Upload coverage report
+    - name: Upload coverage reports
       uses: actions/upload-artifact@v3
       if: always()
       with:
-        name: coverage-report
-        path: messaging_app/htmlcov/
+        name: coverage-reports
+        path: |
+          messaging_app/htmlcov/
+          messaging_app/coverage.xml
+    
+    - name: Display coverage summary
+      if: always()
+      run: |
+        cd messaging_app
+        echo "=== Coverage Summary ==="
+        coverage report -m || true
